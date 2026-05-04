@@ -50,6 +50,43 @@
         {"name": "intent_text", "type": "string", "description": "Fehlerbeschreibung oder Intent-Text", "required": true}
       ],
       "command": ["/Users/jeremy/dev/stealth-cache/opencode_helper.sh", "--query", "{intent_text}"]
+    },
+    {
+      "name": "sota-complexity",
+      "description": "Schätzt Prompt-Komplexität: micro (≤80chars, classify_element)|mid (≤300)|heavy (alles andere).",
+      "params": [
+        {"name": "prompt", "type": "string", "description": "Prompt-Text zum Schätzen", "required": true}
+      ],
+      "command": ["python3", "-c",
+        "import sys; sys.path.insert(0,'/Users/jeremy/dev/stealth-cost'); from stealth_cost import get_optimizer; print(get_optimizer().estimate_complexity(sys.argv[1] if len(sys.argv)>1 else '', ''))",
+        "{prompt}"]
+    },
+    {
+      "name": "sota-best-model",
+      "description": "Gibt bestes Fireworks-Modell für Komplexitäts-Level zurück.",
+      "params": [
+        {"name": "complexity", "type": "string", "description": "micro|mid|heavy", "required": true}
+      ],
+      "command": ["python3", "-c",
+        "import sys; sys.path.insert(0,'/Users/jeremy/dev/stealth-cost'); from stealth_cost import get_optimizer; print(get_optimizer().best_model_for_complexity(sys.argv[1] if len(sys.argv)>1 else 'mid'))",
+        "{complexity}"]
+    },
+    {
+      "name": "sota-stats",
+      "description": "Zeigt kombinierte Stats aller 5 Kostenspar-Strategien.",
+      "params": [],
+      "command": ["python3", "-c",
+        "import sys; sys.path.insert(0,'/Users/jeremy/dev/stealth-cost'); from stealth_cost import get_optimizer; import json; print(json.dumps(get_optimizer().stats(), indent=2))"]
+    },
+    {
+      "name": "config-get",
+      "description": "Gibt Konfigurationswert aus config.yaml zurück.",
+      "params": [
+        {"name": "section", "type": "string", "description": "Section: cache|compressor|batch|routing|output_limiter", "required": true}
+      ],
+      "command": ["python3", "-c",
+        "import sys; sys.path.insert(0,'/Users/jeremy/dev/stealth-config'); from stealth_config import get_config; print(get_config().get(sys.argv[1] if len(sys.argv)>1 else ''))",
+        "{section}"]
     }
   ]
 }

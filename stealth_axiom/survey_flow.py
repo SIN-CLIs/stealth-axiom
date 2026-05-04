@@ -15,7 +15,6 @@ def _model_for(tier: str) -> str:
 
 
 class SurveyMAS:
-    """Vollständige MAS-Pipeline für EINEN Survey-Schritt."""
 
     def __init__(self, persona: str = "default", router: AxiomRouter = None):
         self.persona = persona
@@ -68,15 +67,38 @@ class SurveyMAS:
         return prompt
 
     def _call_llm(self, model: str, prompt: str, agent: AgentSpec) -> dict:
-        import os, urllib.request, hashlib, json
+        import os, urllib.request, hashlib
 
-        cache_key = hashlib.sha256((prompt[:200] + model).encode()).hexdigest()
+        compressed_prompt = prompt
+        try:
+            import sys
+            sys.path.insert(0, "/Users/jeremy/dev/stealth-compressor")
+            from stealth_compressor import compress as _compress
+            compressed_prompt = _compress(prompt)
+        except Exception:
+            pass
+
+        try:
+            sys.path.insert(0, "/Users/jeremy/dev/stealth-cache")
+            from stealth_cache.cache import get_cache as _get_semantic_cache
+            semantic_cache = _get_semantic_cache()
+            cache_hit = semantic_cache.query(compressed_prompt)
+            if cache_hit:
+                logger.debug("Semantic cache HIT for %s (sim=%.2f)", agent.name, cache_hit.get("similarity", 0))
+                return self._parse_agent_output(agent.task_type, cache_hit["response"])
+        except Exception:
+            pass
+
+        cache_key = hashlib.sha256((compressed_prompt[:200] + model).encode()).hexdigest()
         cache_path = Path.home() / ".stealth" / "llm_cache.json"
         if cache_path.exists():
-            cache = json.loads(cache_path.read_text())
-            if cache_key in cache:
-                logger.debug("Cache HIT for %s", agent.name)
-                return cache[cache_key]
+            try:
+                cache = json.loads(cache_path.read_text())
+                if cache_key in cache:
+                    logger.debug("LLM cache HIT for %s", agent.name)
+                    return cache[cache_key]
+            except Exception:
+                pass
 
         api_key = os.environ.get("NVIDIA_API_KEY", "")
         if not api_key:
@@ -86,16 +108,19 @@ class SurveyMAS:
                     with open(ep) as f:
                         for line in f:
                             if line.startswith("NVIDIA_API_KEY="):
-                                api_key = line.strip().split("=", 1)[1].strip("\"'")
+                                api_key = line.strip().split("=", 1)[1].strip("'\"")
                                 break
         if not api_key:
             logger.warning("NVIDIA_API_KEY not found, using fallback parser")
             return self._parse_agent_output(agent.task_type, prompt[:100])
+
+        max_tokens = self.router.route(agent.task_type).get("max_tokens", 100)
+
         try:
             payload = json.dumps({
                 "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 100,
+                "messages": [{"role": "user", "content": compressed_prompt}],
+                "max_tokens": max_tokens,
                 "temperature": 0.1,
             }).encode()
             req = urllib.request.Request(
@@ -106,20 +131,36 @@ class SurveyMAS:
             )
             resp = json.loads(urllib.request.urlopen(req, timeout=10).read())
             content = resp["choices"][0]["message"]["content"]
-            result = self._parse_agent_output(agent.task_type, content)
+        except Exception as e:
+            logger.warning("LLM call failed for %s: %s", agent.name, e)
+            return {"decision": "", "confidence": 0.0, "errors": [str(e)]}
 
-            cache_path = Path.home() / ".stealth" / "llm_cache.json"
+        try:
+            sys.path.insert(0, "/Users/jeremy/dev/stealth-optimizer")
+            from stealth_optimizer import limit as _limit
+            complexity = "micro" if agent.complexity.value == "micro" else "mid"
+            content = _limit(content, complexity)
+        except Exception:
+            pass
+
+        result = self._parse_agent_output(agent.task_type, content)
+
+        try:
             cache = {}
             if cache_path.exists():
                 try: cache = json.loads(cache_path.read_text())
                 except: pass
             cache[cache_key] = result
             cache_path.write_text(json.dumps(cache))
+        except Exception:
+            pass
 
-            return result
-        except Exception as e:
-            logger.warning("LLM call failed for %s: %s", agent.name, e)
-            return {"decision": "", "confidence": 0.0, "errors": [str(e)]}
+        try:
+            semantic_cache.store(compressed_prompt, content, model, 0.75, agent.task_type)
+        except Exception:
+            pass
+
+        return result
 
     def _parse_agent_output(self, task: str, content: str) -> dict:
         result = {"decision": content, "confidence": 0.8, "elements": [], "errors": []}
