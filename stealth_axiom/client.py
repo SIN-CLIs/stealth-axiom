@@ -1,22 +1,43 @@
 #!/usr/bin/env python3
-"""stealth-axiom CLI – Modell-Router-Statistiken + Routen-Test."""
+"""stealth-axiom CLI – Router + RecursiveMAS + Survey Pipeline."""
 import json, sys, argparse
 from .router import AxiomRouter, MODELS
+from .recursive_link import RecursiveLink, MASCollaboration, CollaborationPattern, AgentSpec
+from .survey_flow import SurveyMAS
 
 router = AxiomRouter()
 
 def main():
     p = argparse.ArgumentParser(prog="stealth-axiom")
     sub = p.add_subparsers(dest="command")
-    sub.add_parser("stats", help="Router-Statistiken anzeigen")
-    r = sub.add_parser("route", help="Task routen und Modell ausgeben")
-    r.add_argument("task_type", help="z.B. classify_element, classify_page")
+
+    sub.add_parser("stats", help="Router-Statistiken")
+
+    r = sub.add_parser("route", help="Task routen")
+    r.add_argument("task_type")
     r.add_argument("--page-complexity", choices=["low", "high"], default="low")
-    f = sub.add_parser("fail", help="Fehlschlag für Task-Typ verbuchen")
+
+    f = sub.add_parser("fail", help="Fehlschlag verbuchen")
     f.add_argument("task_type")
-    s = sub.add_parser("success", help="Erfolg für Task-Typ verbuchen")
+
+    s = sub.add_parser("success", help="Erfolg verbuchen")
     s.add_argument("task_type")
-    sub.add_parser("health", help="Router-Health-Check")
+
+    sub.add_parser("health", help="Health-Check")
+
+    # RecursiveMAS subcommands
+    m = sub.add_parser("mas", help="MAS-Pipeline ausführen")
+    m.add_argument("--pattern", choices=["sequential", "mixture", "deliberation"], default="sequential")
+    m.add_argument("--ax-tree", default="<button>Weiter</button>")
+    m.add_argument("--body", default="")
+
+    survey = sub.add_parser("survey", help="Survey-MAS-Pipeline (4 Agenten)")
+    survey.add_argument("--ax-tree", default="")
+    survey.add_argument("--body", default="")
+    survey.add_argument("--persona", default="Manfred, 55, männlich, Rentner aus Bayern, technik-affin")
+
+    rl = sub.add_parser("link", help="RecursiveLink-Status")
+    rl.add_argument("--show-state", action="store_true")
 
     args = p.parse_args()
     if not args.command:
@@ -39,6 +60,31 @@ def main():
         healthy = len(MODELS) == 6
         print(json.dumps({"status": "healthy" if healthy else "degraded", "models": len(MODELS),
                           "free_pct": round(sum(1 for m in MODELS.values() if m.is_free) / len(MODELS) * 100)}))
+    elif args.command == "mas":
+        agents = [
+            AgentSpec("agent-a", "micro", "classify_element"),
+            AgentSpec("agent-b", "mid", "classify_page"),
+            AgentSpec("agent-c", "micro", "verify_state"),
+        ]
+        pattern = CollaborationPattern(args.pattern)
+        collab = MASCollaboration(pattern, agents)
+        results = collab.run_sequential(
+            lambda a, ctx: {"decision": f"{a.name} processed", "confidence": 0.9, "elements": ["button"]}
+        )
+        print(json.dumps({"pattern": args.pattern, "results": results, "report": collab.get_report()}, indent=2, default=str))
+    elif args.command == "survey":
+        sm = SurveyMAS(persona=args.persona, router=router)
+        result = sm.process(args.ax_tree, args.body)
+        print(json.dumps(result, indent=2, default=str))
+    elif args.command == "link":
+        link = RecursiveLink()
+        out1 = link.process("test-agent", {"decision": "Weiter klicken", "confidence": 0.95, "page_type": "consent"})
+        state = link.get_state()
+        if args.show_state:
+            print(json.dumps(state, indent=2, default=str))
+        else:
+            print(f"Conditioning: {out1}")
+            print(f"Latency: {state['link_latency_ms']}ms")
 
 if __name__ == "__main__":
     main()
