@@ -4,6 +4,7 @@ import json, sys, argparse
 from .router import AxiomRouter, MODELS
 from .recursive_link import RecursiveLink, MASCollaboration, CollaborationPattern, AgentSpec
 from .survey_flow import SurveyMAS
+from .adapter_registry import AdapterRegistry
 
 router = AxiomRouter()
 
@@ -38,6 +39,15 @@ def main():
 
     rl = sub.add_parser("link", help="RecursiveLink-Status")
     rl.add_argument("--show-state", action="store_true")
+
+    ad = sub.add_parser("list-adapters", help="Alle LoRA-Adapter auflisten")
+    ad.add_argument("--capability", default=None)
+
+    sa = sub.add_parser("set-adapter", help="Aktiven Adapter setzen")
+    sa.add_argument("adapter_id")
+
+    an = sub.add_parser("analyze", help="Task mit Adapter-Routing analysieren")
+    an.add_argument("task_hint")
 
     args = p.parse_args()
     if not args.command:
@@ -85,6 +95,23 @@ def main():
         else:
             print(f"Conditioning: {out1}")
             print(f"Latency: {state['link_latency_ms']}ms")
+    elif args.command == "list-adapters":
+        reg = AdapterRegistry()
+        adapters = reg.list_all()
+        if args.capability:
+            adapters = [a for a in adapters if args.capability in a.get("capability", "")]
+        stats = reg.get_stats()
+        print(json.dumps({"stats": stats, "adapters": adapters}, indent=2, default=str))
+    elif args.command == "set-adapter":
+        reg = AdapterRegistry()
+        ok = reg.set_active(args.adapter_id)
+        active = reg.get_active()
+        print(json.dumps({"ok": ok, "active": active}, indent=2, default=str))
+    elif args.command == "analyze":
+        reg = AdapterRegistry()
+        best = reg.best_for_task(args.task_hint)
+        model_id = reg.model_id_for_task(args.task_hint)
+        print(json.dumps({"task_hint": args.task_hint, "best_adapter": best, "model_id": model_id}, indent=2, default=str))
 
 if __name__ == "__main__":
     main()
