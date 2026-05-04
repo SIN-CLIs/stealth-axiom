@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "description": "SIN-Axiom: Adaptive Model Router + Adapter Registry + Cache Layer",
+  "tools": [
+    {
+      "name": "axiom-route",
+      "description": "Routet Task-Type zum optimalen Modell (Micro/Mid/Heavy + Failure-Escalation).",
+      "params": [
+        {"name": "task_type", "type": "string", "description": "Task-Type: classify_element, pick_answer, verify_state, classify_page, ocr_image, solve_math, analyze_new_provider", "required": true},
+        {"name": "context", "type": "string", "description": "Optional: complexity=high, cache_friendly=true, min_confidence=0.8"}
+      ],
+      "command": ["python3", "-c",
+        "import sys; sys.path.insert(0,'/Users/jeremy/dev/stealth-axiom'); from stealth_axiom.router import AxiomRouter; r=AxiomRouter(); ctx={} if len(sys.argv)<3 else dict(x.split('=') for x in sys.argv[2].split(',')); cfg=r.route(sys.argv[1], ctx); print(cfg['name'])",
+        "{task_type}", "{context}"]
+    },
+    {
+      "name": "axiom-stats",
+      "description": "Zeigt Router-Stats: micro/mid/heavy Verteilung, estimated_cost, savings.",
+      "params": [],
+      "command": ["python3", "-c",
+        "import sys; sys.path.insert(0,'/Users/jeremy/dev/stealth-axiom'); from stealth_axiom.router import AxiomRouter; import json; r=AxiomRouter(); print(json.dumps(r.get_stats(), indent=2))"]
+    },
+    {
+      "name": "axiom-list-adapters",
+      "description": "Listet alle LoRA-Adapter aus dem Adapter-Registry mit Status.",
+      "params": [],
+      "command": ["python3", "-c",
+        "import sys; sys.path.insert(0,'/Users/jeremy/dev/stealth-axiom'); from stealth_axiom.adapter_registry import AdapterRegistry; import json; r=AdapterRegistry(); print(json.dumps(r.list_adapters(), indent=2))"]
+    },
+    {
+      "name": "axiom-best-adapter",
+      "description": "Findet den besten Adapter für einen Task-Hint.",
+      "params": [
+        {"name": "task_hint", "type": "string", "description": "Task-Beschreibung, z.B. 'classify element in survey page'", "required": true}
+      ],
+      "command": ["python3", "-c",
+        "import sys; sys.path.insert(0,'/Users/jeremy/dev/stealth-axiom'); from stealth_axiom.adapter_registry import AdapterRegistry; import json; r=AdapterRegistry(); best=r.best_for_task(sys.argv[1] if len(sys.argv)>1 else ''); print(json.dumps(best, indent=2) if best else 'No adapter found')",
+        "{task_hint}"]
+    },
+    {
+      "name": "cache-status",
+      "description": "Zeigt Semantic-Cache-Stats: hit_rate, cached_entries, hot_entries.",
+      "params": [],
+      "command": ["/Users/jeremy/dev/stealth-cache/opencode_helper.sh", "--status"]
+    },
+    {
+      "name": "cache-query",
+      "description": "Prüft ob Intent/Screenshot bereits gecacht ist.",
+      "params": [
+        {"name": "intent_text", "type": "string", "description": "Fehlerbeschreibung oder Intent-Text", "required": true}
+      ],
+      "command": ["/Users/jeremy/dev/stealth-cache/opencode_helper.sh", "--query", "{intent_text}"]
+    }
+  ]
+}

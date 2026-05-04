@@ -1,13 +1,6 @@
-"""Survey MAS Pipeline — Konkrete sequentielle MAS-Kollaboration für Umfragen.
-
-Agenten:
-  Step 1: AX-Tree-Parser (Micro)   → erkennt Elemente + Seitentyp
-  Step 2: Page-Classifier (Mid)    → klassifiziert Consent/Frage/Ende
-  Step 3: Answer-Generator (Mid)   → wählt Antwort basierend auf Persona
-  Step 4: Action-Verifier (Micro)  → prüft ob Klick erfolgreich war
-"""
 from __future__ import annotations
 import json, time, logging
+from pathlib import Path
 from .recursive_link import MASCollaboration, CollaborationPattern, AgentSpec, LatentState
 from .router import AxiomRouter, MODELS
 
@@ -75,7 +68,16 @@ class SurveyMAS:
         return prompt
 
     def _call_llm(self, model: str, prompt: str, agent: AgentSpec) -> dict:
-        import os, urllib.request
+        import os, urllib.request, hashlib, json
+
+        cache_key = hashlib.sha256((prompt[:200] + model).encode()).hexdigest()
+        cache_path = Path.home() / ".stealth" / "llm_cache.json"
+        if cache_path.exists():
+            cache = json.loads(cache_path.read_text())
+            if cache_key in cache:
+                logger.debug("Cache HIT for %s", agent.name)
+                return cache[cache_key]
+
         api_key = os.environ.get("NVIDIA_API_KEY", "")
         if not api_key:
             env_paths = ["/Users/jeremy/dev/stealth-runner/.env", "/Users/jeremy/dev/stealth-axiom/.env"]
@@ -104,7 +106,17 @@ class SurveyMAS:
             )
             resp = json.loads(urllib.request.urlopen(req, timeout=10).read())
             content = resp["choices"][0]["message"]["content"]
-            return self._parse_agent_output(agent.task_type, content)
+            result = self._parse_agent_output(agent.task_type, content)
+
+            cache_path = Path.home() / ".stealth" / "llm_cache.json"
+            cache = {}
+            if cache_path.exists():
+                try: cache = json.loads(cache_path.read_text())
+                except: pass
+            cache[cache_key] = result
+            cache_path.write_text(json.dumps(cache))
+
+            return result
         except Exception as e:
             logger.warning("LLM call failed for %s: %s", agent.name, e)
             return {"decision": "", "confidence": 0.0, "errors": [str(e)]}

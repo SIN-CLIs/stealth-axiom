@@ -1,5 +1,6 @@
-"""3-Tier Model Router: Micro → Mid → Heavy, Failure-Escalation."""
-import time, logging
+import time, logging, json, hashlib
+from pathlib import Path
+from typing import Optional
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,18 @@ class AxiomRouter:
         self.failure_counts = {}
         self.max_free_failures = max_free_failures
         self._stats = {"micro": 0, "mid": 0, "heavy": 0, "ocr": 0}
+        self._success_rates = {}
+        self._llm_cache_path = Path.home() / ".stealth" / "llm_cache.json"
+
+    def _llm_cache_get(self, prompt: str, model: str) -> Optional[dict]:
+        if not self._llm_cache_path.exists():
+            return None
+        try:
+            cache = json.loads(self._llm_cache_path.read_text())
+            key = hashlib.sha256((prompt[:200] + model).encode()).hexdigest()
+            return cache.get(key)
+        except Exception:
+            return None
 
     def route(self, task_type: str, context: dict = None) -> ModelConfig:
         ctx = context or {}
@@ -57,7 +70,7 @@ class AxiomRouter:
             if ctx.get("complexity") == "high":
                 return MODELS["nemotron-super"]
             return MODELS["step-flash"]
-        if task_type in ("solve_math", "analyze_new_provider"):
+        if task_type in ("solve_math", "analyze_new_provider", "analyze_context"):
             fails = self.failure_counts.get(task_type, 0)
             if fails >= self.max_free_failures:
                 self._stats["heavy"] += 1
@@ -68,15 +81,30 @@ class AxiomRouter:
         self._stats["mid"] += 1
         return MODELS["step-flash"]
 
+    def route_cheap_first(self, task_type: str, min_confidence: float = 0.8) -> ModelConfig:
+        rate = self._success_rates.get(task_type, 1.0)
+        if rate >= 0.95 and task_type in ("classify_element", "verify_state"):
+            return MODELS["mistral-small"]
+        return self.route(task_type)
+
     def record_failure(self, task_type: str):
         c = self.failure_counts.get(task_type, 0) + 1
         self.failure_counts[task_type] = c
+        self._update_success_rate(task_type, 0)
         logger.info("Failure #%d for %s", c, task_type)
 
     def record_success(self, task_type: str):
         old = self.failure_counts.pop(task_type, None)
         if old is not None:
             logger.info("Reset failure count for %s (was %d)", task_type, old)
+        self._update_success_rate(task_type, 1)
+
+    def _update_success_rate(self, task_type: str, outcome: int):
+        if task_type not in self._success_rates:
+            self._success_rates[task_type] = [1.0, 0]
+        sr, n = self._success_rates[task_type]
+        n += 1
+        self._success_rates[task_type] = [(sr * (n - 1) + outcome) / n, n]
 
     def get_stats(self) -> dict:
         total = sum(self._stats.values()) or 1
