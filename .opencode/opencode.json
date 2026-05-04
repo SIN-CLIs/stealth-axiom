@@ -87,6 +87,25 @@
       "command": ["python3", "-c",
         "import sys; sys.path.insert(0,'/Users/jeremy/dev/stealth-config'); from stealth_config import get_config; print(get_config().get(sys.argv[1] if len(sys.argv)>1 else ''))",
         "{section}"]
+    },
+    {
+      "name": "axiom-set-active-adapter",
+      "description": "Aktiviert einen bestimmten Adapter fuer nachfolgende Inferenzen.",
+      "params": [{"name": "--adapter-id", "type": "string", "required": true}],
+      "command": ["python3", "-c",
+        "import sys; sys.path.insert(0,'/Users/jeremy/dev/stealth-axiom'); from stealth_axiom.adapter_registry import AdapterRegistry; r=AdapterRegistry(); r.activate(sys.argv[1]); print(f'adapter {sys.argv[1]} active')",
+        "{--adapter-id}"]
+    },
+    {
+      "name": "axiom-analyze-with-adapter",
+      "description": "Fuehrt eine tiefe Analyse mit dem besten LoRA-Adapter durch.",
+      "params": [
+        {"name": "--task", "type": "string", "required": true},
+        {"name": "--prompt", "type": "string", "required": true}
+      ],
+      "command": ["python3", "-c",
+        "import sys; sys.path.insert(0,'/Users/jeremy/dev/stealth-axiom'); from stealth_axiom.adapter_registry import AdapterRegistry; r=AdapterRegistry(); a=r.best_for_task(sys.argv[1]); print(f'best adapter: {a.get(\\\"adapter_id\\\",\\\"none\\\") if a else \\\"none\\\"}')",
+        "{--task}", "{--prompt}"]
     }
   ]
 }
