@@ -67,7 +67,7 @@ def main():
         router.record_success(args.task_type)
         print(json.dumps({"recorded": "success", "task_type": args.task_type}))
     elif args.command == "health":
-        healthy = len(MODELS) == 6
+        healthy = len(MODELS) >= 5
         print(json.dumps({"status": "healthy" if healthy else "degraded", "models": len(MODELS),
                           "free_pct": round(sum(1 for m in MODELS.values() if m.is_free) / len(MODELS) * 100)}))
     elif args.command == "mas":
