@@ -18,36 +18,49 @@ class ModelConfig(dict):
     def __setattr__(self, k, v):
         self[k] = v
 
-GATEWAY_BASE = "https://ai-gateway.vercel.sh/v1"
 NVIDIA_BASE = "https://integrate.api.nvidia.com/v1"
+MISTRAL_BASE = "https://api.mistral.ai/v1"
 
 MODELS = {
-    "nemotron-nano": ModelConfig(
-        name="nvidia/nemotron-3-nano-30b-a3b", provider="vercel",
+    "mistral-small": ModelConfig(
+        name="mistral-small-latest", provider="mistral",
         complexity=TaskComplexity.MICRO, cost_per_call=0,
-        avg_latency_ms=60, max_tokens=200, is_free=True,
-        base_url=GATEWAY_BASE),
-    "nemotron-nano-omni": ModelConfig(
+        avg_latency_ms=80, max_tokens=100, is_free=True,
+        base_url=MISTRAL_BASE, needs_reasoning=False),
+    "nemotron-nano": ModelConfig(
+        name="nvidia/nemotron-3-nano-30b-a3b", provider="nvidia",
+        complexity=TaskComplexity.MID, cost_per_call=0,
+        avg_latency_ms=500, max_tokens=400, is_free=True,
+        base_url=NVIDIA_BASE, needs_reasoning=True),
+    "nemotron-super": ModelConfig(
+        name="nvidia/nemotron-3-super-120b-a12b", provider="nvidia",
+        complexity=TaskComplexity.HEAVY, cost_per_call=0,
+        avg_latency_ms=2000, max_tokens=800, is_free=True,
+        base_url=NVIDIA_BASE, needs_reasoning=True),
+    "nemotron-omni": ModelConfig(
         name="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning", provider="nvidia",
         complexity=TaskComplexity.MICRO, cost_per_call=0,
-        avg_latency_ms=60, max_tokens=200, is_free=True,
-        base_url=NVIDIA_BASE),
-    "deepseek-flash": ModelConfig(
-        name="deepseek/deepseek-v4-flash", provider="vercel",
-        complexity=TaskComplexity.MID, cost_per_call=0,
-        avg_latency_ms=300, max_tokens=500, is_free=True,
-        base_url=GATEWAY_BASE),
-    "deepseek-pro": ModelConfig(
-        name="deepseek/deepseek-v4-pro", provider="vercel",
-        complexity=TaskComplexity.HEAVY, cost_per_call=0.01,
-        avg_latency_ms=2000, max_tokens=4000, is_free=False,
-        base_url=GATEWAY_BASE),
+        avg_latency_ms=600, max_tokens=300, is_free=True,
+        base_url=NVIDIA_BASE, needs_reasoning=True),
     "nemoretriever-ocr": ModelConfig(
         name="nvidia/nemoretriever-ocr-v1", provider="nvidia",
         complexity=TaskComplexity.OCR, cost_per_call=0,
         avg_latency_ms=500, max_tokens=300, is_free=True,
-        base_url=NVIDIA_BASE),
+        base_url=NVIDIA_BASE, needs_reasoning=False),
 }
+
+
+def parse_nemotron_response(response: dict) -> str:
+    for choice in response.get("choices", []):
+        msg = choice.get("message", {})
+        content = msg.get("content")
+        if content:
+            return content
+        reasoning = msg.get("reasoning", "")
+        if reasoning and len(reasoning) > 20:
+            return reasoning.split("\n\n")[-1].strip()
+    return str(response)
+
 
 class AxiomRouter:
     def __init__(self, max_free_failures=3):
@@ -71,28 +84,28 @@ class AxiomRouter:
         ctx = context or {}
         if task_type in ("classify_element", "pick_answer", "verify_state"):
             self._stats["micro"] += 1
-            return MODELS["nemotron-nano"]
+            return MODELS["mistral-small"]
         if task_type == "ocr_image":
             self._stats["ocr"] += 1
             return MODELS["nemoretriever-ocr"]
         if task_type in ("classify_page", "plan_next_action", "detect_question_type"):
             self._stats["mid"] += 1
-            return MODELS["deepseek-flash"]
+            return MODELS["nemotron-nano"]
         if task_type in ("solve_math", "analyze_new_provider", "analyze_context"):
             fails = self.failure_counts.get(task_type, 0)
             if fails >= self.max_free_failures:
                 self._stats["heavy"] += 1
-                logger.warning("Escalating %s to DeepSeek V4 Pro (%d failures)", task_type, fails)
-                return MODELS["deepseek-pro"]
+                logger.warning("Escalating %s to Nemotron Super 120B (%d failures)", task_type, fails)
+                return MODELS["nemotron-super"]
             self._stats["mid"] += 1
-            return MODELS["deepseek-flash"]
+            return MODELS["nemotron-nano"]
         self._stats["mid"] += 1
-        return MODELS["deepseek-flash"]
+        return MODELS["nemotron-nano"]
 
     def route_cheap_first(self, task_type: str, min_confidence: float = 0.8) -> ModelConfig:
         rate = self._success_rates.get(task_type, 1.0)
         if rate >= 0.95 and task_type in ("classify_element", "verify_state"):
-            return MODELS["nemotron-nano"]
+            return MODELS["mistral-small"]
         return self.route(task_type)
 
     def record_failure(self, task_type: str):
@@ -116,16 +129,15 @@ class AxiomRouter:
 
     def get_stats(self) -> dict:
         total = sum(self._stats.values()) or 1
-        heavy_cost = self._stats["heavy"] * MODELS["deepseek-pro"].cost_per_call
         return {
             "calls": dict(self._stats), "failure_counts": dict(self.failure_counts),
             "total_calls": sum(self._stats.values()),
             "micro_pct": round(self._stats["micro"] / total * 100, 1),
             "mid_pct": round(self._stats["mid"] / total * 100, 1),
             "heavy_pct": round(self._stats["heavy"] / total * 100, 1),
-            "estimated_cost_usd": round(heavy_cost, 4),
-            "savings_vs_heavy_only": round(total * 0.01 - heavy_cost, 4),
-            "providers": {"vercel": GATEWAY_BASE, "nvidia": NVIDIA_BASE},
+            "estimated_cost_usd": 0.0,
+            "savings_vs_all_heavy": "100% (all free)",
+            "providers": {"mistral": MISTRAL_BASE, "nvidia": NVIDIA_BASE},
         }
 
 axiom_router = AxiomRouter()
