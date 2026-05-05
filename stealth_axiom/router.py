@@ -32,11 +32,11 @@ MODELS = {
         complexity=TaskComplexity.MID, cost_per_call=0,
         avg_latency_ms=500, max_tokens=400, is_free=True,
         base_url=NVIDIA_BASE, needs_reasoning=True),
-    "nemotron-super": ModelConfig(
-        name="nvidia/nemotron-3-super-120b-a12b", provider="nvidia",
+    "mistral-medium": ModelConfig(
+        name="mistral-medium-latest", provider="mistral",
         complexity=TaskComplexity.HEAVY, cost_per_call=0,
-        avg_latency_ms=2000, max_tokens=800, is_free=True,
-        base_url=NVIDIA_BASE, needs_reasoning=True),
+        avg_latency_ms=2400, max_tokens=500, is_free=True,
+        base_url=MISTRAL_BASE, needs_reasoning=False),
     "nemotron-omni": ModelConfig(
         name="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning", provider="nvidia",
         complexity=TaskComplexity.MICRO, cost_per_call=0,
@@ -95,8 +95,8 @@ class AxiomRouter:
             fails = self.failure_counts.get(task_type, 0)
             if fails >= self.max_free_failures:
                 self._stats["heavy"] += 1
-                logger.warning("Escalating %s to Nemotron Super 120B (%d failures)", task_type, fails)
-                return MODELS["nemotron-super"]
+                logger.warning("Escalating %s to Mistral Medium (%d failures)", task_type, fails)
+                return MODELS["mistral-medium"]
             self._stats["mid"] += 1
             return MODELS["nemotron-nano"]
         self._stats["mid"] += 1
