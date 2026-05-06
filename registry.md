@@ -18,7 +18,7 @@
 | Command | Grund |
 |---------|-------|
 | webauto-nodriver | ABSOLUT BANNED |
-| skylight-cli | DEPRECATED |
+| skylight-cli | RE-ACTIVATED (snapshot-compact + batch) |
 | CDP Navigation | BANNED |
 | pyautogui / pynput | BANNED |
 

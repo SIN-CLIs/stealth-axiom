@@ -13,7 +13,7 @@
 ## Stealth Suite Integration
 
 Dieses Repo ist Teil der Stealth Suite und MUSS:
-1. CUA-ONLY Architektur respektieren
+1. NEMO Architektur respektieren (Compact Snapshot + NIM + Batch Execute — CUA-ONLY ist LEGACY/DEPRECATED)
 2. Pipeline (perceive→plan→guard→execute→critique) einhalten
 3. BANNED Tools vermeiden
 

@@ -10,8 +10,8 @@
 
 Dieses Repo (stealth-axiom) ist Teil der **SIN-CLIs Stealth Suite** und MUSS:
 1. Alle Regeln aus [stealth-runner/sinrules.md](https://github.com/OpenSIN-AI/stealth-runner/blob/main/sinrules.md) befolgen
-2. BANNED Tools vermeiden: webauto-nodriver (absolut), skylight-cli (deprecated), CDP (nur JS)
-3. CUA-ONLY Architektur für Browser-Interaktion respektieren
+2. BANNED Tools vermeiden: webauto-nodriver (absolut BANNED), skylight-cli (RE-ACTIVATED: snapshot-compact + batch), CDP (nur JS)
+3. NEMO Architektur für Browser-Interaktion respektieren (Compact Snapshot + NIM + Batch Execute)
 4. Pipeline: perceive → plan → guard → execute → critique
 
 ## §2 — Repo-spezifische Verbote
@@ -19,7 +19,7 @@ Dieses Repo (stealth-axiom) ist Teil der **SIN-CLIs Stealth Suite** und MUSS:
 - NIE ohne Pipeline guard.execute() ausführen
 - NIE Koordinaten-basiertes Klicken (pyautogui/pynput)
 - NIE CDP für Navigation/Klicks
-- NIE `pkill -f "heypiggy-bot"` oder `killall Google Chrome`
+- NIE `pkill -f "heypiggy-bot"` oder `killall Google Chrome` — nutze `SessionManager.close_all()`
 
 ## §3 — Pflicht-Dokumentation
 

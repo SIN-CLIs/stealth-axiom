@@ -8,11 +8,11 @@
 
 | Tool/Methode | Grund | Ersatz |
 |-------------|-------|--------|
-| `webauto-nodriver` | MCP-Server, CDP-Missbrauch | cua-driver |
-| `skylight-cli` | Index instabil, DEPRECATED | cua-driver |
-| CDP Navigation/Klicks | Chrome blockiert, unsicher | cua-driver |
-| `pyautogui` | Mausbewegung | cua-driver AXPress |
-| `pynput` | Mausbewegung | cua-driver AXPress |
+| `webauto-nodriver` | MCP-Server, CDP-Missbrauch | cua-driver (LEGACY — NEMO is PRIMARY for surveys) |
+| `skylight-cli` | DEPRECATED | `skylight-cli` RE-ACTIVATED (snapshot-compact + batch) |
+| CDP Navigation/Klicks | Chrome blockiert, unsicher | cua-driver (LEGACY — NEMO is PRIMARY for surveys) |
+| `pyautogui` | Mausbewegung | cua-driver (LEGACY) AXPress |
+| `pynput` | Mausbewegung | cua-driver (LEGACY) AXPress |
 | `pkill -f "heypiggy-bot"` | Killt USER Chrome mit! | `SessionManager.close_all()` |
 
 ## BEDINGT ERLAUBT
